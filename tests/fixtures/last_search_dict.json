@@ -1,0 +1,22 @@
+{
+  "query": "a car overtaking another vehicle",
+  "backend": "gemini",
+  "results": [
+    {
+      "similarity": "0.91",
+      "file": "front_2024-01-15_14-30.mp4",
+      "start": "02:15",
+      "end": "02:45",
+      "saved_clip": "./match_front_2024-01-15_14-30_02m15s-02m45s.mp4"
+    },
+    {
+      "similarity": 0.66,
+      "file": "clip2.mov",
+      "start": "1:02:03",
+      "end": "1:02:33"
+    },
+    {
+      "file": "broken_entry_no_times.mp4"
+    }
+  ]
+}
