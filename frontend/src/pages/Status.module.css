@@ -1,0 +1,74 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 20px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.table th {
+  text-align: left;
+  color: var(--text-faint);
+  font-weight: 500;
+  font-size: 12px;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.table td {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.statusBadge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+.queued {
+  background: var(--bg-hover);
+  color: var(--text-dim);
+}
+.running {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+.done {
+  background: var(--success);
+  color: #04180e;
+}
+.failed {
+  background: var(--danger);
+  color: #2a0605;
+}
+
+.progressCell {
+  width: 140px;
+}
+
+.errorRow {
+  background: rgba(226, 85, 79, 0.08);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+  color: var(--danger);
+}
+
+.expandBtn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 12px;
+}
