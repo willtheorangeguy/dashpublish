@@ -1,0 +1,44 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dashpublish"
+version = "0.1.0"
+description = "Dashcam AI clip pipeline and YouTube publisher"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+license = { text = "MIT" }
+authors = [{ name = "dashpublish" }]
+dependencies = [
+    "typer",
+    "pydantic>=2",
+    "pydantic-settings",
+    "sqlalchemy>=2",
+    "alembic",
+    "fastapi",
+    "uvicorn[standard]",
+    "httpx",
+    "google-genai",
+    "google-api-python-client",
+    "google-auth-oauthlib",
+    "google-auth-httplib2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "ruff",
+]
+
+[project.scripts]
+dashpublish = "dashpublish.cli.main:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/dashpublish"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,38 @@
+# dashpublish configuration template.
+# Copy to dashpublish.toml and adjust. Secrets live in environment variables
+# (see .env.example), never in this file.
+
+[general]
+# Directory where dashcam footage is uploaded / lives.
+footage_dir = "./footage"
+# Where dashpublish stores its database, clips, compilations, tokens, etc.
+data_dir = "~/.dashpublish"
+
+[embeddings]
+# One of: "gemini", "dashscope", "local"
+backend = "gemini"
+
+[llm]
+# One of: "gemini", "ollama"
+provider = "gemini"
+model = "gemini-2.5-flash"
+ollama_url = "http://localhost:11434"
+ollama_model = "llama3.1"
+
+[scan]
+default_threshold = 0.5
+save_top = 3
+dedupe_window_s = 3
+rerank = true
+
+[compile]
+short_max_s = 60
+long_target_s = 300
+music_duck_db = -12
+transition = "cut"
+
+[youtube]
+# One of: "private", "unlisted"
+default_privacy = "private"
+# YouTube category id; "2" = Autos & Vehicles.
+category_id = "2"

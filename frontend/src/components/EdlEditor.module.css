@@ -1,0 +1,59 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  cursor: grab;
+}
+.row.dragging {
+  opacity: 0.4;
+}
+
+.handle {
+  color: var(--text-faint);
+  font-size: 16px;
+  user-select: none;
+}
+
+.thumb {
+  width: 72px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 4px;
+  background: #000;
+  flex-shrink: 0;
+}
+
+.info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 120px;
+}
+
+.trims {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.trims input {
+  width: 70px;
+}
+
+.removeBtn {
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  font-size: 18px;
+}
+.removeBtn:hover {
+  color: var(--danger);
+}

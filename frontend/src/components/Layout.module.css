@@ -1,0 +1,50 @@
+.shell {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  min-height: 100vh;
+}
+
+.nav {
+  background: var(--bg-elevated);
+  border-right: 1px solid var(--border);
+  padding: 20px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.brand {
+  font-size: 16px;
+  font-weight: 700;
+  padding: 0 10px 18px;
+  color: var(--text);
+}
+.brand span {
+  color: var(--accent);
+}
+
+.link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 500;
+}
+.link:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+  text-decoration: none;
+}
+.linkActive {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.main {
+  padding: 28px 32px 60px;
+  overflow-x: hidden;
+  min-width: 0;
+}

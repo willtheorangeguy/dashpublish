@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# Virtual env
+.venv/
+venv/
+
+# Node / frontend
+node_modules/
+frontend/dist/
+
+# Env & secrets
+.env
+
+# Databases
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
