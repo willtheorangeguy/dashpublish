@@ -42,7 +42,7 @@ def ts_to_seconds(value: Any) -> float | None:
 
 
 # --- last_search.json -------------------------------------------------------
-_SCORE_KEYS = ("score", "similarity", "relevance")
+_SCORE_KEYS = ("score", "similarity_score", "similarity", "relevance")
 _SOURCE_KEYS = ("source_file", "source", "file", "filename", "video", "path")
 _START_KEYS = ("start_s", "start", "start_time", "start_seconds", "from")
 _END_KEYS = ("end_s", "end", "end_time", "end_seconds", "to")
@@ -163,3 +163,34 @@ def parse_stdout(text: str) -> list[SearchMatch]:
             target = pending.pop(0)
             target.saved_clip_path = saved.group("path").strip()
     return matches
+
+
+def merge_saved_clip_paths(
+    matches: list[SearchMatch], stdout_matches: list[SearchMatch], *, tolerance_s: float = 1.5
+) -> None:
+    """Copy ``saved_clip_path`` from stdout-parsed matches onto ``matches`` in place.
+
+    ``last_search.json`` carries scores and timings but no saved-clip paths; those
+    only appear in stdout (``Saved clip: ...``). Matches are paired by source-file
+    basename and start/end within ``tolerance_s`` (stdout timestamps are rounded
+    to whole seconds), falling back to list order.
+    """
+
+    def _base(p: str) -> str:
+        return Path(p).name
+
+    unclaimed = [s for s in stdout_matches if s.saved_clip_path]
+    for match in matches:
+        for candidate in unclaimed:
+            if (
+                _base(candidate.source_file) == _base(match.source_file)
+                and abs(candidate.start_s - match.start_s) <= tolerance_s
+                and abs(candidate.end_s - match.end_s) <= tolerance_s
+            ):
+                match.saved_clip_path = candidate.saved_clip_path
+                unclaimed.remove(candidate)
+                break
+    # Order-based fallback for anything still unpaired.
+    leftovers = [m for m in matches if not m.saved_clip_path]
+    for match, candidate in zip(leftovers, unclaimed):
+        match.saved_clip_path = candidate.saved_clip_path

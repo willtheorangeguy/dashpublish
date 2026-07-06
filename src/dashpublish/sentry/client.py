@@ -13,7 +13,7 @@ from pathlib import Path
 
 from dashpublish.db.schemas import SearchMatch
 from dashpublish.logging import get_logger
-from dashpublish.sentry.parse import parse_last_search, parse_stdout
+from dashpublish.sentry.parse import merge_saved_clip_paths, parse_last_search, parse_stdout
 
 logger = get_logger(__name__)
 
@@ -157,6 +157,7 @@ class SentrySearchClient:
 
         started = time.time()
         proc = self._run(args, timeout_s=timeout_s)
+        stdout_matches = parse_stdout(proc.stdout or "")
 
         last_search = self.home / "last_search.json"
         try:
@@ -165,11 +166,16 @@ class SentrySearchClient:
             )
         except OSError:
             fresh = False
-        if fresh:
-            matches = parse_last_search(last_search)
-            if matches:
-                return matches
-        return parse_stdout(proc.stdout or "")
+        matches = parse_last_search(last_search) if fresh else []
+        if matches:
+            # The JSON has scores/timings but no saved-clip paths; those only
+            # appear on stdout ("Saved clip: ...").
+            merge_saved_clip_paths(matches, stdout_matches)
+        else:
+            matches = stdout_matches
+        # last_search.json is an unfiltered cache — it includes results below the
+        # requested threshold, so filter here.
+        return [m for m in matches if m.score >= threshold]
 
 
 class FakeSentryClient:

@@ -940,3 +940,82 @@ watch-1  | use the 'init' command to create a new scripts folder." and I also ca
   - `PowerShell: git add .gitignore Dockerfile | Out-Null; git -c user.email="willtheorangeguy@outlook.com" -c user.name="willtheorangeguy" commit -q -m @' Docker: SENTRYSEARCH_`
 
 **Claude:** Committed, working tree clean. Waiting on the real-mode scan to reach a terminal state to confirm error surfacing works properly.
+
+**You:** <task-notification>
+<task-id>b2hx2q9dn</task-id>
+<summary>Monitor event: "Wait for real-mode index/scan jobs to reach terminal state"</summary>
+<event>[{"id":2,"type":"scan","status":"running","progress":0.0,"message":null,"error":null,"payload_json":{"footage_dir":"/data/footage"},"created_at":"2026-07-06T05:58:34.537491","started_at":"2026-07-06T05:58:34.537491","finished_at":null},{"id":1,"type":"index","status":"done","progress":1.0,"message":"indexing complete","error":null,"payload_json":{"footage_dir":"/data/footage"},"created_at":"2026-07-06T05:58:34.537003","started_at":"2026-07-06T05:58:34.537003","finished_at":"2026-07-06T05:59:19.5...(truncated)
+[]</event>
+If this event is something the user would act on now, send a PushNotification. Routine or benign output doesn't need one.
+</task-notification>
+
+**You:** <task-notification>
+<task-id>b2hx2q9dn</task-id>
+<tool-use-id>toolu_01Un8kc6vsTsTX8wP8q4yyav</tool-use-id>
+<output-file>C:\Users\DANIEL~1\AppData\Local\Temp\claude\D--W-dashpublish\4a694f84-c062-477e-b013-b6e185ae7c46\tasks\b2hx2q9dn.output</output-file>
+<status>completed</status>
+<summary>Monitor "Wait for real-mode index/scan jobs to reach terminal state" stream ended</summary>
+</task-notification>
+
+**Claude:** The index job ran for 45 seconds and completed — real sentrysearch is actually executing now. The scan job is still running. Let me look at what sentrysearch is doing under the hood.
+  - `PowerShell: docker compose logs web --tail 25 2>&1 | Select-String -Pattern 'sentry|scan|index|error|Error|model|download' | Select-Object -First 15; ""; (Invoke-WebRequest`
+  - `PowerShell: "scans: $((Invoke-WebRequest http://127.0.0.1:8000/api/scans -UseBasicParsing).Content)"; $clips = (Invoke-WebRequest http://127.0.0.1:8000/api/clips -UseBasicP`
+  - `PowerShell: docker compose exec web sh -c 'sentrysearch stats 2>&1 | head -20; echo ---; sentrysearch search "a car overtaking another vehicle" --results 5 --threshold 0.3`
+  - `PowerShell: docker compose exec web sh -c 'sentrysearch index /data/footage --backend local 2>&1 | head -30; echo "exit=$?"'`
+  - `PowerShell: docker compose exec web sh -c 'sentrysearch index /data/footage --backend local --retry-failed 2>&1 | head -30; echo "exit=$?"'`
+  - `Read: D:\W\dashpublish\src\dashpublish\sentry\client.py`
+  - `Edit: D:\W\dashpublish\src\dashpublish\sentry\client.py`
+  - `Write: D:\W\dashpublish\tests\unit\test_sentry_client_index.py`
+  - `PowerShell: python -m uv run pytest -q 2>&1 | Select-Object -Last 1; python -m uv run ruff check src tests 2>&1 | Select-Object -Last 1`
+  - `PowerShell: git add -A | Out-Null; git -c user.email="willtheorangeguy@outlook.com" -c user.name="willtheorangeguy" commit -q -m @' Surface sentrysearch embed failures: exi`
+  - `PowerShell: docker build -t dashpublish:latest --build-arg SENTRYSEARCH_EXTRAS=local . 2>&1 | Select-Object -Last 6`
+
+**Claude:** Here's where things stand while the local-backend image builds:
+
+**Fixed and committed (3 commits):**
+1. **The crash you reported** — migrations now ship inside the package, so `upgrade_db` works from the installed wheel in Docker. Also made alembic the single schema-init path and taught it to recover from the `web`/`watch` concurrent-init race on the shared volume (which was the *second* crash waiting behind the first one).
+2. **The "cannot find files" issue** — two config problems: your `dashpublish.toml` had `footage_dir = "./footage"` (resolves to `/app/footage` inside the container; compose mounts footage at `/data/footage` — now fixed in your config), and your `.env` had `DASHPUBLISH_FAKE=1`, which made everything a silent no-op demo (now set to 0). I also pointed `ollama_url` at `host.docker.internal` since `localhost` inside a container is the container itself.
+3. **A real product bug this uncovered** — sentrysearch exits 0 even when *every* chunk fails to embed (they go to its internal DLQ), so dashpublish reported clean indexes that stored nothing. The client now inspects the output and raises with the actual cause. In your case that cause was: the slim image has plain sentrysearch, but your config uses `backend = "local"`, which needs torch (`No module named 'torch'`).
+
+**Verified working in Docker already:** watch daemon starts clean, sees your 3 videos, enqueues jobs after the settle pass, and the web worker really invokes sentrysearch (indexed your files and ran all 8 category searches).
+
+**In progress:** rebuilding the image with `--build-arg SENTRYSEARCH_EXTRAS=local`. Heads-up on what that path costs: first index will download the qwen8b model (~16 GB) into the `sentry-data` volume, and CPU-only embedding in Docker is slow (upstream quotes 2–5s/chunk on an A100 — expect much worse on CPU). If that turns out too painful, the one-line alternative is `backend = "gemini"` in `dashpublish.toml` plus a free `GEMINI_API_KEY` in `.env` (~$2.84/hour of footage). I'll restart the stack when the build lands.
+
+**You:** <task-notification>
+<task-id>boou7ipy4</task-id>
+<tool-use-id>toolu_01RJVhBYBh4sHLzGCjxhA8pj</tool-use-id>
+<output-file>C:\Users\DANIEL~1\AppData\Local\Temp\claude\D--W-dashpublish\4a694f84-c062-477e-b013-b6e185ae7c46\tasks\boou7ipy4.output</output-file>
+<status>completed</status>
+<summary>Background command "Rebuild image with sentrysearch local backend extras (torch)" completed (exit code 0)</summary>
+</task-notification>
+
+**Claude:** The build finished. Let me verify torch actually made it into the image (the install is fault-tolerant, so success needs checking), then restart the stack clean.
+  - `PowerShell: docker run --rm --entrypoint sh dashpublish:latest -c '/root/.local/share/uv/tools/sentrysearch/bin/python -c "import torch; print(\"torch\", torch.__version__)`
+
+**Claude:** torch 2.6.0 is in the image. Restarting the stack with clean volumes (wiping the DLQ from the failed attempts) and monitoring the real local-backend run.
+  - `PowerShell: docker compose down 2>&1 | Out-Null; docker volume rm dashpublish_dashpublish-data dashpublish_sentry-data 2>&1 | Out-Null; docker compose up -d 2>&1 | Select-O`
+  - `Monitor: while true; do jobs=$(curl -s http://127.0.0.1:8000/api/jobs 2>/dev/null) echo "$jobs" | grep -qE '"type":\s*"index".*?"status":\s*"(done|error)"|"status":\s*"(`
+
+**Claude:** The stack is restarted clean with the torch-enabled image, and a monitor is armed for up to an hour watching the index/scan jobs. What happens next in the container: the watch daemon's 30s settle → index job → sentrysearch auto-detects qwen8b and **downloads the ~16 GB model on first use** into the `sentry-data` volume, then embeds your 3 videos on CPU. This first run may take a while (download + CPU inference); subsequent runs skip the download. I'll report as soon as the jobs hit a terminal state — with the new error-surfacing fix, a failure will now show up loudly in the job/scan records instead of pretending to succeed.
+
+**You:** <task-notification>
+<task-id>bet5ugthc</task-id>
+<summary>Monitor event: "Watch real local-backend index/scan to terminal state (model download may take long)"</summary>
+<event>INDEX TERMINAL: [{"id":2,"type":"scan","status":"running","progress":0.0,"message":null,"error":null,"payload_json":{"footage_dir":"/data/footage"},"created_at":"2026-07-06T17:23:18.515147","started_at":"2026-07-06T17:23:18.515147","finished_at":null},{"id":1,"type":"index","status":"done","progress":1.0,"message":"indexing complete","error":null,"payload_json":{"footage_dir":"/data/footage"},"created_at":"2026-07-06T17:23:18.514660","started_at":"2026-07-06T17:23:18.514660","finished_at":"2026-...(truncated)</event>
+If this event is something the user would act on now, send a PushNotification. Routine or benign output doesn't need one.
+</task-notification>
+
+**Claude:** The index job completed successfully with the local backend — torch worked, the model is in place, and your 3 videos are now genuinely embedded. The scan job is running now (each of the 8 category searches embeds its query through the same local model). The monitor will fire when the scan finishes, and I'll report what clips it found.
+
+**You:** <task-notification>
+<task-id>bet5ugthc</task-id>
+<summary>Monitor event: "Watch real local-backend index/scan to terminal state (model download may take long)"</summary>
+<event>INDEX TERMINAL: [{"id":2,"type":"scan","status":"running","progress":0.0,"message":null,"error":null,"payload_json":{"footage_dir":"/data/footage"},"created_at":"2026-07-06T17:23:18.515147","started_at":"2026-07-06T17:23:18.515147","finished_at":null},{"id":1,"type":"index","status":"done","progress":1.0,"message":"indexing complete","error":null,"payload_json":{"footage_dir":"/data/footage"},"created_at":"2026-07-06T17:23:18.514660","started_at":"2026-07-06T17:23:18.514660","finished_at":"2026-...(truncated)</event>
+If this event is something the user would act on now, send a PushNotification. Routine or benign output doesn't need one.
+</task-notification>
+
+**Claude:** That's a duplicate notification from my monitor loop (it re-emits the index status every poll while the scan runs). Let me replace it with a quieter one that only fires on the scan's terminal state.
+  - `TaskStop: bet5ugthc`
+  - `Bash: until curl -s http://127.0.0.1:8000/api/jobs 2>/dev/null | grep -qE '"type":\s*"scan"[^}]*"status":\s*"(done|error)"'; do sleep 20; done echo "SCANS: $(curl -s`
+
+**Claude:** Waiting on the scan to finish — I'll report the detected clips when it lands.
