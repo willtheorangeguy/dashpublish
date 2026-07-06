@@ -630,3 +630,98 @@ Overlays five settings-table keys onto `load_config()`: `footage_dir→general.f
   - `TaskUpdate: 5`
 
 **Claude:** Package G (Sonnet) is building the last pieces: the full Typer CLI, the watch daemon, the multi-stage Dockerfile + compose setup, and the README. When it reports back I'll run the integration pass myself — full test suite, offline fake-mode end-to-end (index → scan → compile → upload → publish), a live server check against the built SPA, and a Docker build.
+
+**You:** <task-notification>
+<task-id>ae3b4bda966a05b05</task-id>
+<tool-use-id>toolu_013w1yazSKtdXrJgBjMrbCyy</tool-use-id>
+<output-file>C:\Users\DANIEL~1\AppData\Local\Temp\claude\D--W-dashpublish\4a694f84-c062-477e-b013-b6e185ae7c46\tasks\ae3b4bda966a05b05.output</output-file>
+<status>completed</status>
+<summary>Agent "Package G: CLI + Docker + docs" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Package G is complete and not committed (per instructions). Here's the summary.
+
+## Command inventory
+
+| Command | Behavior |
+|---|---|
+| `dashpublish init [--youtube]` | Writes `dashpublish.toml` (from `./dashpublish.example.toml` if present, else an embedded fallback template — needed because Docker doesn't ship the example file), runs `upgrade_db` + seeds categories, warns (not fails) if `sentrysearch` is missing from PATH, optionally runs the YouTube OAuth browser flow. |
+| `dashpublish index [PATH]` | `register_footage` + `ensure_indexed`, prints new/seen/total + indexed count. |
+| `dashpublish scan [--category]... [--dry-run]` | Resolves category names (exit 1 if unknown), `ensure_indexed` + `run_scan`; `--dry-run` builds a throwaway sqlite (`create_all_for_tests` on a random tmp-dir engine) with a `FakeSentryClient`, so the real DB is never touched; exit 2 on partial scan errors. |
+| `dashpublish clips list/star` | Table or `--json` listing; `star ID [--unstar]`. |
+| `dashpublish compile` | Creates the compilation row + candidate stash, then **enqueues the same `compile` jobs the API uses** (`action=plan`/`render`) via `run_pending_jobs` rather than reimplementing planning/rendering. `--plan-only` stops after planning and prints the EDL JSON. |
+| `dashpublish publish upload/go` | Generates missing title/description/tags from the stored EDL via `generate_metadata` before uploading; `go` flips privacy to public. |
+| `dashpublish jobs [--watch]` | Lists jobs; `--watch` polls every 2s until nothing is `queued`/`running`. |
+| `dashpublish serve [--host/--port]` | `uvicorn.run("dashpublish.api.app:app", ...)`. |
+| `dashpublish watch [--interval]` | Runs the watch daemon (below). |
+
+**Notable fix:** `jobs/tasks.py` (frozen) has an edge case where `_task_plan`'s `get_provider(cfg)` call, and `_task_render`'s "no EDL" check, raise *before* their own try/except sets the compilation's `status="failed"` — the job row does get `status="error"`, but the compilation is left stuck at `planning`/`rendering`. `compile_cmd.py` guards against this by checking the enqueued job's own status in addition to the compilation's, so the CLI never reports success for a job that actually errored.
+
+## Watch daemon semantics (`src/dashpublish/watch/daemon.py`)
+
+`watch_loop(cfg, db_path, *, interval_s=60, once=False, enqueue_only=None, stop_event=None)`. Each tick: `register_footage`; if `new &gt; 0`, sleeps `SETTLE_S=30s` (mockable via `daemon.time.sleep`) then re-registers once (a "settle" pass for still-uploading files), then enqueues `index` + `scan` jobs. `enqueue_only` defaults to `DASHPUBLISH_NO_WORKER=1` (matching the compose `watch` service, which shares its DB with `web`'s worker); otherwise it drains via `run_pending_jobs`. `KeyboardInterrupt` is caught and logged, not propagated.
+
+## Docker design
+
+- Multi-stage: `node:20-alpine` builds the SPA, then `python:3.12-slim` (+ffmpeg, git) installs the package.
+- **SPA into the wheel**: the built `frontend/dist` is `COPY`'d into `src/dashpublish/web` *before* `uv pip install --system .`. I verified empirically (`uv build --wheel`, then inspected the zip) that hatchling's default wheel build for this repo includes any non-gitignored file under `src/dashpublish/` regardless of git-tracked status — so this placement is safe, not merely assumed.
+- `sentrysearch` install is best-effort (`|| echo ...`) so a network hiccup during build never breaks the image.
+- `docker-compose.yml` uses a YAML anchor (`x-app`) for the shared `web`/`watch` service config; validated with `docker compose config` (temporarily supplying a `.env` copied from `.env.example`, then removed — no real secrets touched).
+
+## README ToC
+
+What it is (ASCII pipeline) → Quick start → CLI reference → Configuration (+ YouTube OAuth steps) → sentrysearch install → Docker → Fake mode → Short vs long form → Troubleshooting (incl. ffmpeg, unverified-app privacy lock, ~$2.84/hr Gemini cost note) → Development.
+
+## Tests
+
+`tests/unit/test_cli.py` (23 tests) and `tests/unit/test_watch.py` (6 tests) — full suite now **173 passed, 1 skipped** (up from 148+1), `ruff check` clean on `src` and `tests`. Verified manually end-to-end in fake mode: `init` → `index` → `scan --dry-run` → `scan` → `clips list/star` → `compile --plan-only` → `compile` (monkeypatched render) → `publish upload` (auto-metadata) → `publish go`, plus `watch` (settle pass + no-op-when-nothing-new).
+
+## Deviations
+
+- `dashpublish.example.toml` / `.env.example` were left unchanged — already complete and matching `Config` exactly.
+- Split the CLI into `main.py` + `_common.py` + `clips.py` + `compile_cmd.py` + `publish.py` rather than one file per single command, since Typer sub-apps map cleanly to the `clips`/`publish` command groups.</result>
+<usage><subagent_tokens>258341</subagent_tokens><tool_uses>122</tool_uses><duration_ms>1399216</duration_ms></usage>
+</task-notification>
+
+**Claude:** Package G is done — full CLI, watch daemon, Docker, README; suite at 173 passed. G also flagged a real bug in the job task layer: an early exception in plan/render (e.g., LLM provider misconfigured) marks the job failed but can leave the compilation stuck in `planning`/`rendering`, which would make the web UI poll forever. I'll fix that myself in the integration pass, which starts now.
+  - `TaskUpdate: 5`
+  - `TaskUpdate: 6`
+  - `PowerShell: git add -A 2>&1 | Out-Null; git -c user.email="willtheorangeguy@outlook.com" -c user.name="willtheorangeguy" commit -q -m @' Package G: Typer CLI, watch daemon,`
+  - `Grep: def _task_(plan|render)|def run_job|status="failed"|status = "failed"`
+  - `Read: D:\W\dashpublish\src\dashpublish\jobs\tasks.py`
+  - `Edit: D:\W\dashpublish\src\dashpublish\jobs\tasks.py`
+  - `Read: D:\W\dashpublish\src\dashpublish\jobs\tasks.py`
+  - `Read: D:\W\dashpublish\tests\unit\test_worker.py`
+
+**Claude:** Imports are fine. Adding a regression test for the stuck-status fix.
+  - `Edit: D:\W\dashpublish\tests\unit\test_worker.py`
+  - `PowerShell: python -m uv run pytest -q 2>&1 | Select-Object -Last 5`
+  - `Grep: class FakeSentryClient`
+  - `Read: D:\W\dashpublish\src\dashpublish\sentry\client.py`
+  - `Write: C:\Users\Daniela Sada\.claude\jobs\4a694f84\tmp\e2e.py`
+  - `PowerShell: python -m uv run --project D:\W\dashpublish python "C:\Users\Daniela Sada\.claude\jobs\4a694f84\tmp\e2e.py" 2>&1 | Select-Object -Last 30`
+  - `Edit: C:\Users\Daniela Sada\.claude\jobs\4a694f84\tmp\e2e.py`
+  - `PowerShell: python -m uv run --project D:\W\dashpublish python "C:\Users\Daniela Sada\.claude\jobs\4a694f84\tmp\e2e.py" 2>&1 | Select-Object -Last 30`
+  - `Edit: C:\Users\Daniela Sada\.claude\jobs\4a694f84\tmp\e2e.py`
+  - `PowerShell: python -m uv run --project D:\W\dashpublish python "C:\Users\Daniela Sada\.claude\jobs\4a694f84\tmp\e2e.py" 2>&1 | Select-Object -Last 30`
+  - `PowerShell: $ws = 'C:\Users\DANIEL~1\AppData\Local\Temp\dashpub_e2e_vac85vo4'; $env:DASHPUBLISH_CONFIG = "$ws\dashpublish.toml"; $env:DASHPUBLISH_FAKE = '1'; $env:FFMPEG_PA`
+
+**Claude:** The PowerShell spawn was blocked — I'll run the server via a background Bash command and probe with curl instead.
+  - `Bash: export DASHPUBLISH_CONFIG='C:\Users\DANIEL~1\AppData\Local\Temp\dashpub_e2e_vac85vo4\dashpublish.toml' DASHPUBLISH_FAKE=1 FFMPEG_PATH='C:\Users\Daniela Sada\App`
+  - `Bash: sleep 8; base=http://127.0.0.1:8321 echo "GET /: $(curl -s -o /dev/null -w '%{http_code}' $base/)" curl -s $base/api/clips | head -c 300; echo echo "Range: $(cu`
+  - `ToolSearch: select:TaskStop`
+  - `TaskStop: bhk3mzybn`
+  - `PowerShell: docker info --format '{{.ServerVersion}}' 2>&1 | Select-Object -First 1`
+  - `PowerShell: docker version --format '{{.Server.Version}}' 2>&1; docker ps 2>&1 | Select-Object -First 2`
+  - `PowerShell: Start-Process 'C:\Program Files\Docker\Docker\Docker Desktop.exe'; $deadline = (Get-Date).AddMinutes(3); while ((Get-Date) -lt $deadline) { $v = docker version`
+  - `PowerShell: docker build -t dashpublish:latest . 2>&1 | Select-Object -Last 40`
+  - `PowerShell: Copy-Item .env.example .env.compose-check; docker compose --env-file .env.compose-check config --quiet 2>&1; if ($LASTEXITCODE -eq 0) { 'compose config: OK' } e`
+  - `Read: D:\W\dashpublish\docker-compose.yml`
+  - `Edit: D:\W\dashpublish\docker-compose.yml`
+  - `PowerShell: docker compose config --quiet 2>&1; if ($LASTEXITCODE -eq 0) { 'compose config: OK (no .env present)' } else { 'compose config: FAILED' }`
+
+**Claude:** Compose validates now. While the Docker image builds, let me do a final review sweep of the working tree.
+  - `PowerShell: git status --short | Select-Object -First 20`
+  - `PowerShell: python -m uv run ruff check src tests 2>&1 | Select-Object -Last 2; python -m uv run pytest -q 2>&1 | Select-Object -Last 1`
+  - `PowerShell: git add -A | Out-Null; git -c user.email="willtheorangeguy@outlook.com" -c user.name="willtheorangeguy" commit -q -m @' Integration: unstick compilations on ear`
+
+**Claude:** All integration fixes committed — the suite is at 174 passed / 1 skipped with ruff clean. The only thing still running is the Docker image build; I'll verify the container boots once it finishes.
