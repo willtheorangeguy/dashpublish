@@ -12,7 +12,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict
 
 SourceType = Literal["tesla_event", "generic"]
-ScanStatus = Literal["running", "done", "error"]
+ScanStatus = Literal["running", "done", "error", "partial"]
 CompilationProfile = Literal["short", "long"]
 CompilationStatus = Literal[
     "draft", "planning", "rendering", "rendered", "uploaded", "published", "failed"
