@@ -1,0 +1,50 @@
+# dashpublish — docker compose.
+#
+# Two services share one image and one data volume:
+#   - web:   `dashpublish serve` — the FastAPI + SPA, with its own in-process
+#            worker thread draining the job queue.
+#   - watch: `dashpublish watch` — polls the mounted footage directory and
+#            enqueues index/scan jobs; DASHPUBLISH_NO_WORKER=1 makes it leave
+#            those jobs queued for the `web` service's worker to drain
+#            (both containers share the same sqlite database via the
+#            `dashpublish-data` volume, so a single worker is enough).
+#
+# IMPORTANT: in dashpublish.toml, [general].footage_dir must be set to
+# "/data/footage" (the path *inside* the containers below), not a host path.
+#
+# Usage:
+#   cp dashpublish.example.toml dashpublish.toml   # then edit footage_dir
+#   cp .env.example .env                           # then fill in secrets
+#   docker compose up --build
+
+x-app: &app
+  build: .
+  image: dashpublish:latest
+  env_file: .env
+  working_dir: /app
+  volumes:
+    - ./footage:/data/footage:ro
+    - ./music:/data/music:ro
+    - ./dashpublish.toml:/app/dashpublish.toml:ro
+    - dashpublish-data:/root/.dashpublish
+    - sentry-data:/root/.sentrysearch
+  restart: unless-stopped
+
+services:
+  web:
+    <<: *app
+    command: ["serve", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "8000:8000"
+
+  watch:
+    <<: *app
+    command: ["watch"]
+    environment:
+      - DASHPUBLISH_NO_WORKER=1
+    depends_on:
+      - web
+
+volumes:
+  dashpublish-data:
+  sentry-data:

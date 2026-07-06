@@ -1,0 +1,26 @@
+# Rebuilt from source in the image; never copy the host copies in.
+.venv
+node_modules
+frontend/dist
+
+# VCS / editor / agent metadata.
+.git
+.gitignore
+.recall
+.claude
+
+# Tests and caches — not needed at runtime.
+tests
+.pytest_cache
+**/__pycache__
+*.pyc
+
+# Local runtime data / secrets — never bake into the image.
+*.sqlite
+*.sqlite-*
+.env
+dashpublish.toml
+
+# Misc.
+*.log
+.DS_Store
