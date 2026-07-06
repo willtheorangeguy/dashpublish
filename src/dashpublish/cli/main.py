@@ -324,6 +324,7 @@ def watch(
     """Poll the footage directory and enqueue index/scan jobs when new files appear."""
     cfg = get_cfg()
     db_path, _ = ensure_db(cfg)
+    typer.echo(f"Config: {cfg.config_path or 'built-in defaults (no dashpublish.toml found)'}")
     typer.echo(f"Watching {cfg.general.footage_dir!r} every {interval}s (Ctrl+C to stop)")
     watch_loop(cfg, db_path, interval_s=interval)
     typer.echo("Watch daemon stopped.")

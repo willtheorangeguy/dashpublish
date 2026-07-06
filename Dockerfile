@@ -26,10 +26,10 @@ RUN pip install --no-cache-dir uv
 
 WORKDIR /app
 
+# Alembic migration scripts ship inside the package (src/dashpublish/migrations),
+# so no separate COPY is needed for them.
 COPY pyproject.toml uv.lock README.md ./
 COPY src ./src
-COPY migrations ./migrations
-COPY alembic.ini ./alembic.ini
 
 # The built SPA must land inside src/dashpublish/web *before* the package is
 # installed below, so hatchling packages the static assets into the wheel.

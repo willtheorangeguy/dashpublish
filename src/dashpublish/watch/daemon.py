@@ -22,7 +22,7 @@ from pathlib import Path
 
 from dashpublish.config import Config
 from dashpublish.db.engine import session_scope
-from dashpublish.ingest import register_footage
+from dashpublish.ingest import discover_videos, register_footage
 from dashpublish.jobs import queue
 from dashpublish.jobs.tasks import run_pending_jobs
 from dashpublish.logging import get_logger
@@ -89,8 +89,16 @@ def watch_loop(
     ``Ctrl+C`` stops cleanly rather than printing a traceback).
     """
     if not cfg.general.footage_dir:
-        raise ValueError("[general].footage_dir is not configured")
-    footage_dir = Path(cfg.general.footage_dir)
+        raise ValueError(
+            "[general].footage_dir is not configured"
+            + (f" (config loaded from {cfg.config_path})" if cfg.config_path else " (no config file found; using built-in defaults)")
+        )
+    footage_dir = Path(cfg.general.footage_dir).expanduser()
+    if not footage_dir.is_dir():
+        raise ValueError(
+            f"footage_dir does not exist or is not a directory: {footage_dir} "
+            "(in Docker it must be the in-container path, e.g. /data/footage)"
+        )
 
     resolved_enqueue_only = (
         _default_enqueue_only() if enqueue_only is None else enqueue_only
@@ -98,10 +106,13 @@ def watch_loop(
     event = stop_event if stop_event is not None else threading.Event()
 
     logger.info(
-        "watch daemon starting: footage_dir=%s interval=%ss enqueue_only=%s",
+        "watch daemon starting: footage_dir=%s (%d video file(s) currently visible) "
+        "interval=%ss enqueue_only=%s config=%s",
         footage_dir,
+        len(discover_videos(footage_dir)),
         interval_s,
         resolved_enqueue_only,
+        cfg.config_path or "built-in defaults",
     )
     try:
         while True:

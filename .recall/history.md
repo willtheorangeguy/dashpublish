@@ -725,3 +725,73 @@ What it is (ASCII pipeline) → Quick start → CLI reference → Configuration 
   - `PowerShell: git add -A | Out-Null; git -c user.email="willtheorangeguy@outlook.com" -c user.name="willtheorangeguy" commit -q -m @' Integration: unstick compilations on ear`
 
 **Claude:** All integration fixes committed — the suite is at 174 passed / 1 skipped with ruff clean. The only thing still running is the Docker image build; I'll verify the container boots once it finishes.
+
+**You:** <task-notification>
+<task-id>b75zfedy9</task-id>
+<tool-use-id>toolu_01BF9f1LRGABZQNbA6tSrJ7V</tool-use-id>
+<output-file>C:\Users\DANIEL~1\AppData\Local\Temp\claude\D--W-dashpublish\4a694f84-c062-477e-b013-b6e185ae7c46\tasks\b75zfedy9.output</output-file>
+<status>completed</status>
+<summary>Background command "Build dashpublish Docker image" completed (exit code 0)</summary>
+</task-notification>
+
+**Claude:** Docker image built. Let me check the build log for the sentrysearch install step, then smoke-test the container.
+  - `Read: C:\Users\DANIEL~1\AppData\Local\Temp\claude\D--W-dashpublish\4a694f84-c062-477e-b013-b6e185ae7c46\tasks\b75zfedy9.output`
+
+**Claude:** The real sentrysearch installed successfully inside the image. Now the container smoke test.
+  - `PowerShell: docker run -d --rm --name dashpub-smoke -p 8451:8000 -e DASHPUBLISH_FAKE=1 dashpublish:latest serve --host 0.0.0.0 --port 8000 | Out-Null; Start-Sleep 8; "api`
+  - `TaskUpdate: 6`
+  - `Write: C:\Users\Daniela Sada\.claude\projects\D--W-dashpublish\memory\dashpublish-project.md`
+  - `Write: C:\Users\Daniela Sada\.claude\projects\D--W-dashpublish\memory\windows-dev-env-quirks.md`
+  - `Write: C:\Users\Daniela Sada\.claude\projects\D--W-dashpublish\memory\MEMORY.md`
+  - `Skill: recall:save`
+
+**You:** Generate (or overwrite) this project's `context.md` summary now, using Recall's
+local offline summarizer.
+
+Run with the Bash tool:
+
+```
+python3 "C:/Users/Daniela Sada/.claude/plugins/cache/recall/recall/0.3.6/scripts/make_context.py" || python "C:/Users/Daniela Sada/.claude/plugins/cache/recall/recall/0.3.6/scripts/make_context.py"
+```
+
+(`make_context.py` defaults to the current directory, so no `--cwd` is needed —
+and on Windows passing the shell's `$(pwd)` would hand it a `/c/...` path that
+doesn't match the transcript dir. The `|| python` fallback covers Windows, where
+the interpreter is normally `python`, not `python3`.)
+
+Then report back:
+
+- On success it prints the path it wrote and which summarizer path ran
+  (numpy-accelerated TextRank if numpy is present, otherwise the pure-Python
+  TextRank — both vendored, no install needed). Confirm the save and read back the
+  **Goal** and **Where we left off** lines from `.recall/context.md`.
+- If it errored, surface the exact message.
+  - `Grep: ^(\*\*Goal|Goal|\*\*Where we left off|Where we left off)`
+  - `Read: D:\W\dashpublish\.recall\context.md`
+
+**Claude:** The offline summarizer produced a noisy summary — I'll rewrite `context.md` by hand so the next session gets an accurate picture, then commit the final state.
+  - `Write: D:\W\dashpublish\.recall\context.md`
+  - `PowerShell: git add -A | Out-Null; git -c user.email="willtheorangeguy@outlook.com" -c user.name="willtheorangeguy" commit -q -m @' Save session context (Recall) Co-Authore`
+
+**Claude:** **dashpublish is fully implemented, tested, and committed.** The complete dashcam → AI clips → web UI → YouTube pipeline is built per the approved plan, with 174 tests passing and the whole flow verified end-to-end offline, plus a booted Docker container.
+
+## What was built (9 commits on `master`)
+
+- **Pipeline**: `dashpublish index` registers footage (auto-detects Tesla multi-cam event folders, prefers the front camera, plus generic MP4/MOV trees) and feeds it to sentrysearch; `dashpublish scan` runs 8 configurable category queries (overtaking, high-speed, cut-off, near-miss, tailgating, red-light, crash, funny) and stores deduped clips in SQLite.
+- **Compilations**: an LLM (Gemini or Ollama, configurable) plans an edit decision list from clip metadata; ffmpeg renders it — short-form (1080×1920 vertical, ≤60s) or long-form (16:9), original audio with optional ducked background music.
+- **Publishing**: AI-generated title/description/tags, resumable YouTube upload as Private, then review-and-publish — from the web UI or `dashpublish publish upload` / `publish go`.
+- **Web UI**: React SPA served by FastAPI — clip library with playback/starring/tagging, compilation builder with drag-to-reorder EDL editor, review/publish screen, settings, and live job status.
+- **Ops**: `dashpublish watch` daemon for auto-processing new uploads, Dockerfile + compose (`web` + `watch` services, ffmpeg and sentrysearch baked in), and a README covering setup including the Google/YouTube key walkthroughs.
+
+## How it was verified
+
+Beyond the 174-test suite, I drove a real end-to-end run: generated actual video footage with ffmpeg, ingested it, ran a scan (cross-category dedupe confirmed), rendered a real 23s vertical short (verified 1080×1920 via ffprobe), generated metadata, and completed the fake-mode upload→publish flow. I also probed the live server (SPA routing, Range streaming with 206/416, real JPEG thumbnails) and smoke-tested the built Docker image. Two integration bugs found and fixed along the way: compilations could get stuck in `planning`/`rendering` when a job failed early, and compose hard-required a `.env` file.
+
+## What's left for you (needs your accounts — can't be done for you)
+
+1. `python -m uv run dashpublish init` then set `footage_dir` in `dashpublish.toml`.
+2. Put `GEMINI_API_KEY` in `.env` (free key from aistudio.google.com) and install sentrysearch locally if not using Docker.
+3. For YouTube: create OAuth desktop credentials in Google Cloud Console (README has steps) and run `dashpublish init --youtube`.
+4. Or skip local setup entirely: `docker compose up --build`. You can also demo everything with no keys via `DASHPUBLISH_FAKE=1`.
+
+As requested, all seven build packages were delegated to Opus/Sonnet subagents (Fable only orchestrated, reviewed, and did the integration pass). One heads-up: the Recall plugin is logging sessions to `.recall/history.md` in this repo — say the word if you'd like that paused.

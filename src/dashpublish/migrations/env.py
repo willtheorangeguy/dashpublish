@@ -18,9 +18,11 @@ from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 
-# Make the src/ layout importable when alembic runs from the project root.
-_SRC = Path(__file__).resolve().parents[1] / "src"
-if _SRC.is_dir() and str(_SRC) not in sys.path:
+# These scripts live inside the package (src/dashpublish/migrations). Make the
+# src/ layout importable when alembic runs from a repo checkout where the
+# package isn't installed.
+_SRC = Path(__file__).resolve().parents[2]
+if (_SRC / "dashpublish" / "__init__.py").is_file() and str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
 from dashpublish.db.models import Base  # noqa: E402

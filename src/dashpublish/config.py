@@ -11,6 +11,7 @@ tests to clear the cache.
 
 from __future__ import annotations
 
+import logging
 import os
 import tomllib
 from functools import lru_cache
@@ -84,7 +85,19 @@ class Config(BaseModel):
 
 def _read_toml(path: Path) -> dict:
     if not path.exists():
+        if os.environ.get("DASHPUBLISH_CONFIG"):
+            logging.getLogger(__name__).warning(
+                "config file %s (from DASHPUBLISH_CONFIG) not found; using built-in defaults",
+                path,
+            )
         return {}
+    if path.is_dir():
+        raise RuntimeError(
+            f"config path {path} is a directory, not a file. In Docker this usually "
+            "means ./dashpublish.toml did not exist on the host when compose created "
+            "the bind mount — remove the directory, create the file "
+            "(cp dashpublish.example.toml dashpublish.toml), and restart."
+        )
     with path.open("rb") as fh:
         return tomllib.load(fh)
 

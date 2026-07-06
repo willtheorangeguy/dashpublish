@@ -18,8 +18,7 @@ from starlette.staticfiles import StaticFiles
 
 from dashpublish.config import Config, load_config
 from dashpublish.db import repo
-from dashpublish.db.engine import get_engine, session_scope
-from dashpublish.db.models import Base
+from dashpublish.db.engine import session_scope, upgrade_db
 from dashpublish.jobs.worker import Worker
 from dashpublish.logging import get_logger
 from dashpublish.paths import resolve_paths
@@ -53,8 +52,8 @@ def _resolve_web_dir() -> Path | None:
 
 
 def _ensure_schema(db_path: str) -> None:
-    """Create tables (idempotent) and seed the built-in categories."""
-    Base.metadata.create_all(get_engine(db_path))
+    """Bring the schema to head (Alembic) and seed the built-in categories."""
+    upgrade_db(db_path)
     with session_scope(db_path) as session:
         repo.seed_default_categories(session)
 

@@ -74,14 +74,38 @@ def create_all_for_tests(engine: Engine) -> None:
 
 
 def upgrade_db(db_path: str | Path) -> None:
-    """Run Alembic migrations up to head against ``db_path`` programmatically."""
+    """Bring ``db_path`` to the current schema via Alembic, programmatically.
+
+    The migration scripts ship inside the package (``dashpublish/migrations``) so
+    this works from a repo checkout and from an installed wheel (e.g. in Docker)
+    alike, without needing ``alembic.ini``.
+
+    Two situations are handled beyond a plain ``upgrade head``:
+    - A database whose tables were created by ``Base.metadata.create_all`` (no
+      ``alembic_version`` table) is *stamped* head rather than re-migrated —
+      ``create_all`` always produces the current schema.
+    - Two processes initializing the same database concurrently (e.g. the
+      docker-compose ``web`` and ``watch`` services sharing one volume): the
+      loser's ``CREATE TABLE ... already exists`` error is resolved by stamping.
+    """
     from alembic import command
     from alembic.config import Config as AlembicConfig
+    from sqlalchemy import inspect
+    from sqlalchemy.exc import OperationalError
 
-    project_root = Path(__file__).resolve().parents[3]
-    ini_path = project_root / "alembic.ini"
-
-    cfg = AlembicConfig(str(ini_path))
-    cfg.set_main_option("script_location", str(project_root / "migrations"))
+    migrations_dir = Path(__file__).resolve().parents[1] / "migrations"
+    cfg = AlembicConfig()
+    cfg.set_main_option("script_location", str(migrations_dir))
     cfg.set_main_option("sqlalchemy.url", f"sqlite:///{db_path}")
-    command.upgrade(cfg, "head")
+
+    inspector = inspect(get_engine(db_path))
+    if inspector.has_table("videos") and not inspector.has_table("alembic_version"):
+        command.stamp(cfg, "head")
+        return
+
+    try:
+        command.upgrade(cfg, "head")
+    except OperationalError as exc:
+        if "already exists" not in str(exc):
+            raise
+        command.stamp(cfg, "head")
