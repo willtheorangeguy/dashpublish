@@ -89,7 +89,13 @@ class SentrySearchClient:
         chunk_duration: int | None = None,
         overlap: int | None = None,
     ) -> None:
-        """Index a file or directory into sentrysearch's embedding store."""
+        """Index a file or directory into sentrysearch's embedding store.
+
+        sentrysearch exits 0 even when every chunk fails to embed (failures go to
+        its DLQ), so the output text is inspected: a missing-dependency error is
+        fatal, and chunk-level embed failures are surfaced as errors here rather
+        than reported as a clean index.
+        """
         args = ["index", str(path)]
         if chunk_duration is not None:
             args += ["--chunk-duration", str(chunk_duration)]
@@ -97,7 +103,24 @@ class SentrySearchClient:
             args += ["--overlap", str(overlap)]
         if self.backend:
             args += ["--backend", self.backend]
-        self._run(args)
+        proc = self._run(args)
+
+        output = f"{proc.stdout or ''}\n{proc.stderr or ''}"
+        if "Missing dependencies" in output:
+            raise SentrySearchError(
+                "sentrysearch cannot embed with this backend — missing optional "
+                f"dependencies:\n{_tail(output)}\n"
+                "(In Docker, rebuild with --build-arg SENTRYSEARCH_EXTRAS=local "
+                "for the local backend, or switch [embeddings].backend to an API "
+                "backend such as gemini.)"
+            )
+        if "recorded to DLQ" in output or "in DLQ" in output:
+            raise SentrySearchError(
+                f"sentrysearch failed to embed one or more chunks of {path} "
+                f"(sent to its DLQ):\n{_tail(output)}\n"
+                "(Re-run indexing after fixing the cause; sentrysearch retries "
+                "DLQ'd chunks with --retry-failed.)"
+            )
 
     def search(
         self,

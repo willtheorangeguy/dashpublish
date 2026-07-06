@@ -795,3 +795,148 @@ Beyond the 174-test suite, I drove a real end-to-end run: generated actual video
 4. Or skip local setup entirely: `docker compose up --build`. You can also demo everything with no keys via `DASHPUBLISH_FAKE=1`.
 
 As requested, all seven build packages were delegated to Opus/Sonnet subagents (Fable only orchestrated, reviewed, and did the integration pass). One heads-up: the Recall plugin is logging sessions to `.recall/history.md` in this repo — say the word if you'd like that paused.
+
+**You:** The watch contianer is throwing this error: "╭───────────────────── Traceback (most recent call last) ──────────────────────╮
+watch-1  | │ /usr/local/lib/python3.12/site-packages/dashpublish/cli/main.py:326 in watch │
+watch-1  | │                                                                              │
+watch-1  | │   323 ) -> None:                                                             │
+watch-1  | │   324 │   """Poll the footage directory and enqueue index/scan jobs when new │
+watch-1  | │       files appear."""                                                       │
+watch-1  | │   325 │   cfg = get_cfg()                                                    │
+watch-1  | │ ❱ 326 │   db_path, _ = ensure_db(cfg)                                        │
+watch-1  | │   327 │   typer.echo(f"Watching {cfg.general.footage_dir!r} every            │
+watch-1  | │       {interval}s (Ctrl+C to stop)")                                         │
+watch-1  | │   328 │   watch_loop(cfg, db_path, interval_s=interval)                      │
+watch-1  | │   329 │   typer.echo("Watch daemon stopped.")                                │
+watch-1  | │                                                                              │
+watch-1  | │ /usr/local/lib/python3.12/site-packages/dashpublish/cli/_common.py:30 in     │
+watch-1  | │ ensure_db                                                                    │
+watch-1  | │                                                                              │
+watch-1  | │   27 │   """                                                                 │
+watch-1  | │   28 │   paths = resolve_paths(cfg)                                          │
+watch-1  | │   29 │   db_path = str(paths.db_path)                                        │
+watch-1  | │ ❱ 30 │   upgrade_db(db_path)                                                 │
+watch-1  | │   31 │   with session_scope(db_path) as session:                             │
+watch-1  | │   32 │   │   repo.seed_default_categories(session)                           │
+watch-1  | │   33 │   return db_path, paths                                               │
+watch-1  | │                                                                              │
+watch-1  | │ /usr/local/lib/python3.12/site-packages/dashpublish/db/engine.py:87 in       │
+watch-1  | │ upgrade_db                                                                   │
+watch-1  | │                                                                              │
+watch-1  | │   84 │   cfg = AlembicConfig(str(ini_path))                                  │
+watch-1  | │   85 │   cfg.set_main_option("script_location", str(project_root /           │
+watch-1  | │      "migrations"))                                                          │
+watch-1  | │   86 │   cfg.set_main_option("sqlalchemy.url", f"sqlite:///{db_path}")       │
+watch-1  | │ ❱ 87 │   command.upgrade(cfg, "head")                                        │
+watch-1  | │   88                                                                         │
+watch-1  | │                                                                              │
+watch-1  | │ /usr/local/lib/python3.12/site-packages/alembic/command.py:470 in upgrade    │
+watch-1  | │                                                                              │
+watch-1  | │   467 │                                                                      │
+watch-1  | │   468 │   """                                                                │
+watch-1  | │   469 │                                                                      │
+watch-1  | │ ❱ 470 │   script = ScriptDirectory.from_config(config)                       │
+watch-1  | │   471 │                                                                      │
+watch-1  | │   472 │   starting_rev = None                                                │
+watch-1  | │   473 │   if ":" in revision:                                                │
+watch-1  | │                                                                              │
+watch-1  | │ /usr/local/lib/python3.12/site-packages/alembic/script/base.py:186 in        │
+watch-1  | │ from_config                                                                  │
+watch-1  | │                                                                              │
+watch-1  | │    183 │   │   │   sys.path[:0] = prepend_sys_path                           │
+watch-1  | │    184 │   │                                                                 │
+watch-1  | │    185 │   │   rvl =                                                         │
+watch-1  | │        config.get_alembic_boolean_option("recursive_version_locations")      │
+watch-1  | │ ❱  186 │   │   return ScriptDirectory(                                       │
+watch-1  | │    187 │   │   │   util.coerce_resource_to_filename(script_location),        │
+watch-1  | │    188 │   │   │   file_template=config.get_alembic_option(                  │
+watch-1  | │    189 │   │   │   │   "file_template", _default_file_template               │
+watch-1  | │                                                                              │
+watch-1  | │ /usr/local/lib/python3.12/site-packages/alembic/script/base.py:105 in        │
+watch-1  | │ __init__                                                                     │
+watch-1  | │                                                                              │
+watch-1  | │    102 │   │   self.messaging_opts = messaging_opts                          │
+watch-1  | │    103 │   │                                                                 │
+watch-1  | │    104 │   │   if not os.access(dir, os.F_OK):                               │
+watch-1  | │ ❱  105 │   │   │   raise util.CommandError(                                  │
+watch-1  | │    106 │   │   │   │   f"Path doesn't exist: {dir}.  Please use "            │
+watch-1  | │    107 │   │   │   │   "the 'init' command to create a new "                 │
+watch-1  | │    108 │   │   │   │   "scripts folder."                                     │
+watch-1  | ╰──────────────────────────────────────────────────────────────────────────────╯
+watch-1  | CommandError: Path doesn't exist: /usr/local/lib/python3.12/migrations.  Please
+watch-1  | use the 'init' command to create a new scripts folder." and I also cannot get it to find files
+
+**Claude:** The migrations folder isn't shipped inside the installed package — `upgrade_db` resolves it relative to site-packages in Docker, where it doesn't exist. The `serve` container dodges this only because the API boot path uses `create_all` as a safety net. Let me look at the code, fix it properly, and also figure out the "cannot find files" part.
+  - `Read: D:\W\dashpublish\src\dashpublish\db\engine.py`
+  - `Grep: COPY|RUN|ENV|WORKDIR`
+  - `Read: D:\W\dashpublish\src\dashpublish\config.py`
+  - `Read: D:\W\dashpublish\migrations\env.py`
+  - `Read: D:\W\dashpublish\src\dashpublish\watch\daemon.py`
+  - `PowerShell: git mv migrations src/dashpublish/migrations; git status --short | Select-Object -First 8`
+
+**Claude:** The user has local `dashpublish.toml` edits — I'll leave those alone. Now the code fixes.
+  - `Edit: D:\W\dashpublish\src\dashpublish\db\engine.py`
+  - `Edit: D:\W\dashpublish\src\dashpublish\migrations\env.py`
+  - `Read: D:\W\dashpublish\src\dashpublish\migrations\env.py`
+  - `Edit: D:\W\dashpublish\src\dashpublish\migrations\env.py`
+  - `Read: D:\W\dashpublish\alembic.ini`
+  - `Edit: D:\W\dashpublish\alembic.ini`
+  - `Edit: D:\W\dashpublish\src\dashpublish\config.py`
+  - `Edit: D:\W\dashpublish\src\dashpublish\config.py`
+  - `Edit: D:\W\dashpublish\src\dashpublish\watch\daemon.py`
+
+**Claude:** Now add startup visibility (file count + config source) to the watch daemon and CLI.
+  - `Edit: D:\W\dashpublish\src\dashpublish\watch\daemon.py`
+  - `Edit: D:\W\dashpublish\src\dashpublish\watch\daemon.py`
+  - `Read: D:\W\dashpublish\src\dashpublish\cli\main.py`
+  - `Edit: D:\W\dashpublish\src\dashpublish\cli\main.py`
+  - `Read: D:\W\dashpublish\Dockerfile`
+  - `Edit: D:\W\dashpublish\Dockerfile`
+  - `Grep: migrations`
+  - `Grep: migrations|alembic`
+
+**Claude:** No stale references. Running tests plus a dev-mode alembic check.
+  - `PowerShell: python -m uv run pytest -q 2>&1 | Select-Object -Last 1; $env:DASHPUBLISH_DB = "$env:TEMP\alembic_check.sqlite"; Remove-Item $env:DASHPUBLISH_DB -Force -ErrorAc`
+  - `PowerShell: python -m uv run pytest -q 2>&1 | Select-String -Pattern 'FAILED|Error' | Select-Object -First 5`
+  - `PowerShell: git diff dashpublish.example.toml | Select-Object -First 40; "--- untracked dashpublish.toml:"; Get-Content dashpublish.toml -ErrorAction SilentlyContinue | Sel`
+  - `PowerShell: git restore dashpublish.example.toml; Test-Path .\footage`
+
+**Claude:** Your host `./footage` folder exists, so compose will mount it. Updating your `dashpublish.toml` for container paths.
+  - `Read: D:\W\dashpublish\dashpublish.toml`
+  - `Edit: D:\W\dashpublish\dashpublish.toml`
+  - `Edit: D:\W\dashpublish\dashpublish.toml`
+  - `PowerShell: python -m uv run pytest -q 2>&1 | Select-Object -Last 1`
+  - `PowerShell: docker build -t dashpublish:latest . 2>&1 | Select-Object -Last 3`
+  - `PowerShell: docker compose up -d 2>&1 | Select-Object -Last 4; Start-Sleep 10; "=== watch logs ==="; docker compose logs watch --tail 8 2>&1; "=== web check ==="; try { "ap`
+  - `PowerShell: docker compose logs watch --tail 60 2>&1 | Select-String -Pattern 'Error|error|Traceback|table|locked|exist' | Select-Object -First 12`
+  - `Grep: def _ensure_schema`
+  - `Edit: D:\W\dashpublish\src\dashpublish\db\engine.py`
+  - `Edit: D:\W\dashpublish\src\dashpublish\api\app.py`
+  - `Read: D:\W\dashpublish\src\dashpublish\api\app.py`
+  - `Edit: D:\W\dashpublish\src\dashpublish\api\app.py`
+  - `Edit: D:\W\dashpublish\src\dashpublish\api\app.py`
+  - `Grep: get_engine|Base`
+  - `Read: D:\W\dashpublish\tests\unit\test_db_repo.py`
+  - `Write: D:\W\dashpublish\tests\unit\test_upgrade_db.py`
+  - `PowerShell: python -m uv run pytest -q 2>&1 | Select-Object -Last 1; python -m uv run ruff check src tests 2>&1 | Select-Object -Last 1`
+  - `PowerShell: docker compose down 2>&1 | Out-Null; docker volume rm dashpublish_dashpublish-data 2>&1 | Out-Null; docker build -t dashpublish:latest . 2>&1 | Select-Object -L`
+  - `PowerShell: Start-Sleep 15; "=== watch ==="; docker compose logs watch --tail 10 2>&1; "=== web ==="; docker compose logs web --tail 4 2>&1; "=== api ==="; try { "clips: $(`
+  - `PowerShell: Start-Sleep 45; docker compose logs watch --tail 4 2>&1; ""; docker compose logs web --tail 12 2>&1 | Select-String -Pattern 'job|scan|index|sentrysearch|Error|`
+  - `ToolSearch: select:Monitor`
+  - `Monitor: until curl -s http://127.0.0.1:8000/api/jobs | grep -qE '"status":\s*"(done|failed|error)"'; do sleep 3; done; curl -s http://127.0.0.1:8000/api/jobs`
+
+**Claude:** While that watches, committing the fixes.
+  - `PowerShell: git add -A ':!dashpublish.toml' ':!footage' 2>&1 | Out-Null; git -c user.email="willtheorangeguy@outlook.com" -c user.name="willtheorangeguy" commit -q -m @' Fi`
+  - `PowerShell: "videos: $((Invoke-WebRequest http://127.0.0.1:8000/api/videos -UseBasicParsing).Content.Length) bytes"; "clips: $((Invoke-WebRequest http://127.0.0.1:8000/api/`
+  - `Read: D:\W\dashpublish\.env.example`
+
+**Claude:** The example is fine (`=0`) — your `.env` was flipped to `1` at some point. Setting it back and adding the Dockerfile build arg for the local backend.
+  - `PowerShell: (Get-Content .env) -replace '^DASHPUBLISH_FAKE=.*', 'DASHPUBLISH_FAKE=0' | Set-Content .env; Get-Content .env | Select-String DASHPUBLISH_FAKE`
+  - `Edit: D:\W\dashpublish\Dockerfile`
+  - `PowerShell: docker compose down 2>&1 | Out-Null; docker volume rm dashpublish_dashpublish-data 2>&1 | Out-Null; docker compose up -d 2>&1 | Select-Object -Last 1`
+  - `Monitor: until curl -s http://127.0.0.1:8000/api/jobs 2>/dev/null | grep -qE '"status":\s*"(done|failed|error)"'; do sleep 5; done; curl -s http://127.0.0.1:8000/api/job`
+  - `Read: D:\W\dashpublish\.gitignore`
+  - `Edit: D:\W\dashpublish\.gitignore`
+  - `PowerShell: git add .gitignore Dockerfile | Out-Null; git -c user.email="willtheorangeguy@outlook.com" -c user.name="willtheorangeguy" commit -q -m @' Docker: SENTRYSEARCH_`
+
+**Claude:** Committed, working tree clean. Waiting on the real-mode scan to reach a terminal state to confirm error surfacing works properly.
