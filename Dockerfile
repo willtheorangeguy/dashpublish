@@ -45,7 +45,18 @@ RUN uv pip install --system --no-cache .
 # DASHPUBLISH_FAKE=1 for an offline demo, or sentrysearch can be installed
 # manually inside a running container later.
 ENV PATH="/root/.local/bin:${PATH}"
-RUN uv tool install "git+https://github.com/ssrajadh/sentrysearch" \
+# SENTRYSEARCH_EXTRAS selects optional sentrysearch backends, e.g.
+#   docker compose build --build-arg SENTRYSEARCH_EXTRAS=local
+# for the offline Qwen3-VL backend ([embeddings].backend = "local"). Note the
+# local extra downloads a multi-GB model on first index and wants a GPU or
+# plenty of RAM. Default is the slim install (gemini/dashscope API backends).
+ARG SENTRYSEARCH_EXTRAS=""
+RUN if [ -n "$SENTRYSEARCH_EXTRAS" ]; then \
+        SPEC="sentrysearch[$SENTRYSEARCH_EXTRAS] @ git+https://github.com/ssrajadh/sentrysearch"; \
+    else \
+        SPEC="git+https://github.com/ssrajadh/sentrysearch"; \
+    fi \
+    && uv tool install "$SPEC" \
     || echo "sentrysearch install failed; install manually or use fake mode"
 
 ENV DASHPUBLISH_CONFIG=/app/dashpublish.toml

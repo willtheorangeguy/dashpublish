@@ -17,6 +17,11 @@ frontend/dist/
 # Env & secrets
 .env
 
+# Local config and media (user data, mounted into Docker)
+/dashpublish.toml
+/footage/
+/music/
+
 # Databases
 *.sqlite
 *.sqlite-shm
