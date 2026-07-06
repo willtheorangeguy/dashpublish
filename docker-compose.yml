@@ -20,7 +20,9 @@
 x-app: &app
   build: .
   image: dashpublish:latest
-  env_file: .env
+  env_file:
+    - path: .env
+      required: false
   working_dir: /app
   volumes:
     - ./footage:/data/footage:ro

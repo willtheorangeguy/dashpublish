@@ -253,6 +253,14 @@ def run_job(job_id: int, db_path) -> None:
         logger.exception("job %s (%s) failed", job_id, jtype)
         with session_scope(db_path) as session:
             queue.finish(session, job_id, error=str(exc))
+            # Safety net: a compile task can fail before its own handler runs
+            # (e.g. provider setup), leaving the compilation stuck in a
+            # transient status that the UI polls indefinitely.
+            comp_id = payload.get("compilation_id") if jtype == "compile" else None
+            if comp_id is not None:
+                comp = repo.get_compilation(session, comp_id)
+                if comp is not None and comp.status in ("planning", "rendering"):
+                    repo.update_compilation(session, comp_id, status="failed", error=str(exc))
         return
 
     with session_scope(db_path) as session:

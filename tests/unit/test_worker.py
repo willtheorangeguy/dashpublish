@@ -66,6 +66,30 @@ def test_task_exception_marks_failed_and_survives(db_path):
     assert _job(db_path, good_id).status == "done"
 
 
+def test_early_compile_failure_unsticks_compilation(db_path, monkeypatch):
+    """A compile task failing before its own handler (e.g. provider setup) must
+    still flip the compilation out of its transient status."""
+    from dashpublish.db import repo
+    from dashpublish.jobs import tasks
+
+    with session_scope(db_path) as session:
+        comp = repo.create_compilation(session, profile="short", status="planning")
+        comp_id = comp.id
+
+    def boom(cfg):
+        raise RuntimeError("no API key configured")
+
+    monkeypatch.setattr(tasks, "get_provider", boom)
+    job_id = _enqueue(db_path, "compile", {"action": "plan", "compilation_id": comp_id})
+    run_pending_jobs(db_path)
+
+    assert _job(db_path, job_id).status == "error"
+    with session_scope(db_path) as session:
+        comp = repo.get_compilation(session, comp_id)
+        assert comp.status == "failed"
+        assert "no API key" in comp.error
+
+
 def test_worker_thread_lifecycle(db_path):
     worker = Worker(db_path, poll_interval=0.05).start()
     try:
