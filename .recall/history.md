@@ -1019,3 +1019,28 @@ If this event is something the user would act on now, send a PushNotification. R
   - `Bash: until curl -s http://127.0.0.1:8000/api/jobs 2>/dev/null | grep -qE '"type":\s*"scan"[^}]*"status":\s*"(done|error)"'; do sleep 20; done echo "SCANS: $(curl -s`
 
 **Claude:** Waiting on the scan to finish — I'll report the detected clips when it lands.
+
+**You:** <task-notification>
+<task-id>b9dw9ykh8</task-id>
+<tool-use-id>toolu_01896ejNeDY5zRb86crWtae4</tool-use-id>
+<output-file>C:\Users\DANIEL~1\AppData\Local\Temp\claude\D--W-dashpublish\4a694f84-c062-477e-b013-b6e185ae7c46\tasks\b9dw9ykh8.output</output-file>
+<status>completed</status>
+<summary>Background command "Wait for scan job terminal state, then dump scans/clips" completed (exit code 0)</summary>
+</task-notification>
+  - `Read: C:\Users\DANIEL~1\AppData\Local\Temp\claude\D--W-dashpublish\4a694f84-c062-477e-b013-b6e185ae7c46\tasks\b9dw9ykh8.output`
+  - `PowerShell: docker compose exec web sh -c 'cat /root/.sentrysearch/last_search.json 2>/dev/null | head -c 1500; echo; echo ---; ls /app/*.mp4 2>/dev/null; ls /root/.sentrys`
+  - `PowerShell: docker compose exec web sh -c 'cat /root/.sentrysearch/last_clip.json 2>/dev/null; echo; echo ---; cd /tmp && sentrysearch search "a car driving on a road" --re`
+  - `Read: D:\W\dashpublish\src\dashpublish\sentry\parse.py`
+  - `Edit: D:\W\dashpublish\src\dashpublish\sentry\parse.py`
+  - `Edit: D:\W\dashpublish\src\dashpublish\sentry\parse.py`
+  - `Edit: D:\W\dashpublish\src\dashpublish\sentry\client.py`
+  - `Edit: D:\W\dashpublish\src\dashpublish\sentry\client.py`
+
+**Claude:** Now regression tests using the *exact* real output captured from the container.
+  - `Write: D:\W\dashpublish\tests\unit\test_sentry_real_format.py`
+  - `PowerShell: python -m uv run pytest -q 2>&1 | Select-Object -Last 1; python -m uv run ruff check src tests 2>&1 | Select-Object -Last 1`
+  - `PowerShell: git add -A | Out-Null; git -c user.email="willtheorangeguy@outlook.com" -c user.name="willtheorangeguy" commit -q -m @' Align sentrysearch parsers with real out`
+  - `PowerShell: docker compose down 2>&1 | Out-Null; docker volume rm dashpublish_dashpublish-data 2>&1 | Out-Null; docker compose up -d 2>&1 | Select-Object -Last 1`
+  - `Bash: until curl -s http://127.0.0.1:8000/api/jobs 2>/dev/null | grep -qE '"type":\s*"scan"[^}]*"status":\s*"(done|error)"'; do sleep 20; done echo "SCANS: $(curl -s`
+
+**Claude:** The stack is re-running with the fixed parsers. The index step will be quick this time (embeddings are already in the kept `sentry-data` volume, so sentrysearch skips re-embedding), then the 8 category searches run against the loaded model. I'll verify the clips come back with real similarity scores and playable clip files when it completes.
