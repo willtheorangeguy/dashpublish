@@ -15,10 +15,11 @@
 # Usage:
 #   cp dashpublish.example.toml dashpublish.toml   # then edit footage_dir
 #   cp .env.example .env                           # then fill in secrets
-#   docker compose pull && docker compose up -d
+#   docker compose up --build
 
 x-app: &app
-  image: gcr.io/${GCP_PROJECT_ID:?Set GCP_PROJECT_ID in .env}/dashpublish:${DASHPUBLISH_VERSION:-latest}
+  build: .
+  image: dashpublish:latest
   env_file:
     - path: .env
       required: false
