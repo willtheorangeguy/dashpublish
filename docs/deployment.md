@@ -6,11 +6,20 @@
 cp dashpublish.example.toml dashpublish.toml
 # set [general].footage_dir = "/data/footage" — the path inside the containers
 cp .env.example .env
+# set GCP_PROJECT_ID to the project containing the published image
 # fill in GEMINI_API_KEY / YOUTUBE_CLIENT_SECRETS
 
 mkdir -p footage music
-docker compose up --build
+docker compose pull
+docker compose up -d
 ```
+
+Compose pulls `gcr.io/${GCP_PROJECT_ID}/dashpublish:latest`; set
+`DASHPUBLISH_VERSION` in `.env` to a release tag to pin a specific version.
+The release workflow builds and pushes both the release tag and `latest` to GCR.
+Configure the repository variable `GCP_PROJECT_ID` and repository secret
+`GCP_SA_KEY` (a service-account JSON key with permission to write to the
+project's GCR registry) before publishing a GitHub release.
 
 Two containers, one image, one named data volume:
 
@@ -63,8 +72,8 @@ knowing before leaving it running against a live dashcam upload folder.
 ## Updating
 
 ```bash
-git pull
-docker compose up --build -d
+docker compose pull
+docker compose up -d
 ```
 
 Migrations run at start.
